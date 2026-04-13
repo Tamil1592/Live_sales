@@ -3,41 +3,70 @@ import pandas as pd
 import random
 import sqlite3
 import plotly.express as px
+import requests
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+import pytz
 
 # -----------------------------
 # CONFIG
 # -----------------------------
 st.set_page_config(page_title="India Mega Mall Pulse", layout="wide", page_icon="🏬")
+
+# -----------------------------
+# TIMEZONE (INDIA)
+# -----------------------------
+india_tz = pytz.timezone("Asia/Kolkata")
+current_time = datetime.now(india_tz).strftime("%Y-%m-%d %H:%M:%S")
+
 st.title("🏬🇮🇳 India Mega Mall Revenue Pulse")
+st.caption(f"🕒 India Time: {current_time}")
 
 # -----------------------------
-# FULL INDIA STATES + UTs
+# WEATHER API KEY (PUT YOUR KEY HERE)
 # -----------------------------
-ALL_STATES = [
-    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
-    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
-    "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
-    "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
-    "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
-    "Uttar Pradesh", "Uttarakhand", "West Bengal",
-    "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
-    "Lakshadweep", "Delhi", "Puducherry", "Jammu and Kashmir", "Ladakh"
-]
+API_KEY = "YOUR_OPENWEATHER_API_KEY"
+
+def get_weather(city):
+    try:
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
+        res = requests.get(url)
+        data = res.json()
+        if res.status_code == 200:
+            return data["weather"][0]["main"] + " 🌡 " + str(data["main"]["temp"]) + "°C"
+        else:
+            return "Unknown"
+    except:
+        return "No Data"
 
 # -----------------------------
-# SIDEBAR EDIT OPTION
+# STATES (simplified city mapping for weather)
+# -----------------------------
+STATE_CITY_MAP = {
+    "Tamil Nadu": "Chennai",
+    "Kerala": "Kochi",
+    "Karnataka": "Bengaluru",
+    "Maharashtra": "Mumbai",
+    "Delhi": "Delhi",
+    "West Bengal": "Kolkata",
+    "Gujarat": "Ahmedabad",
+    "Rajasthan": "Jaipur"
+}
+
+ALL_STATES = list(STATE_CITY_MAP.keys())
+
+# -----------------------------
+# SIDEBAR
 # -----------------------------
 st.sidebar.header("⚙️ Settings Panel")
 
 selected_states = st.sidebar.multiselect(
-    "Select Active States/UTs",
+    "Select States",
     ALL_STATES,
     default=ALL_STATES
 )
 
-enable_auto_sales = st.sidebar.toggle("Enable Auto Live Sales", value=True)
+enable_auto_sales = st.sidebar.toggle("Enable Auto Sales", value=True)
 
 # -----------------------------
 # DATABASE
@@ -69,12 +98,14 @@ st_autorefresh(interval=20000, key="refresh")
 products = ["iPhone", "Samsung TV", "Nike Shoes", "Levi Jeans", "Rolex Watch", "MacBook"]
 categories = ["Electronics", "Fashion", "Luxury", "Sports", "Food Court"]
 
-def weather():
-    return random.choice(["Sunny ☀️", "Rain 🌧️", "Cloudy ☁️", "Heat 🔥"])
-
 def generate_sale():
     if not selected_states:
         return
+
+    state = random.choice(selected_states)
+    city = STATE_CITY_MAP.get(state, "Chennai")
+    weather_data = get_weather(city)
+
     cursor.execute("""
         INSERT INTO sales(time,product,category,price,state,weather)
         VALUES (?,?,?,?,?,?)
@@ -83,18 +114,18 @@ def generate_sale():
         random.choice(products),
         random.choice(categories),
         random.randint(1000, 200000),
-        random.choice(selected_states),
-        weather()
+        state,
+        weather_data
     ))
     conn.commit()
 
 # -----------------------------
-# MANUAL CONTROL
+# MANUAL + AUTO SALES
 # -----------------------------
 colA, colB = st.columns(2)
 
 with colA:
-    if st.button("➕ Generate One Sale Now"):
+    if st.button("➕ Generate One Sale"):
         generate_sale()
 
 with colB:
@@ -129,27 +160,17 @@ st.dataframe(df.tail(15), use_container_width=True)
 st.subheader("🇮🇳 Revenue by State")
 state_df = df.groupby("state")["price"].sum().reset_index()
 
-st.plotly_chart(
-    px.bar(state_df, x="state", y="price", color="state"),
-    use_container_width=True
-)
+st.plotly_chart(px.bar(state_df, x="state", y="price", color="state"), use_container_width=True)
 
 # -----------------------------
-# CATEGORY + WEATHER
+# WEATHER IMPACT
 # -----------------------------
-col1, col2 = st.columns(2)
+st.subheader("🌦 Live Weather Impact on Sales")
+weather_df = df.groupby("weather")["price"].sum().reset_index()
 
-with col1:
-    st.subheader("🛍 Category Sales")
-    cat_df = df.groupby("category")["price"].sum().reset_index()
-    st.plotly_chart(px.pie(cat_df, names="category", values="price"), use_container_width=True)
-
-with col2:
-    st.subheader("🌦 Weather Impact on Sales")
-    weather_df = df.groupby("weather")["price"].sum().reset_index()
-    st.plotly_chart(px.bar(weather_df, x="weather", y="price", color="weather"), use_container_width=True)
+st.plotly_chart(px.bar(weather_df, x="weather", y="price", color="weather"), use_container_width=True)
 
 # -----------------------------
 # FOOTER
 # -----------------------------
-st.caption(f"🏬 India Mall Analytics System | Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.caption(f"🏬 India Mall Analytics System | Updated: {current_time}")
