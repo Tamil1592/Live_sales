@@ -23,49 +23,34 @@ st.title("🏬🇮🇳 India Mega Mall Revenue Pulse")
 st.caption(f"🕒 India Time: {current_time}")
 
 # -----------------------------
-# WEATHER API KEY
+# WEATHER API KEY (PUT YOUR KEY HERE)
 # -----------------------------
 API_KEY = "YOUR_OPENWEATHER_API_KEY"
 
 def get_weather(city):
     try:
-        url = f"https://api.openweathermap.org/data/2.5/weather?q={city},IN&appid={API_KEY}&units=metric"
-        res = requests.get(url, timeout=5)
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
+        res = requests.get(url)
         data = res.json()
-
         if res.status_code == 200:
-            condition = data["weather"][0]["main"]
-            temp = data["main"]["temp"]
-            return f"{condition} 🌡 {temp}°C"
+            return data["weather"][0]["main"] + " 🌡 " + str(data["main"]["temp"]) + "°C"
         else:
-            return "No Data"
+            return "Unknown"
     except:
-        return "API Error"
+        return "No Data"
 
 # -----------------------------
-# ALL INDIA STATES -> CITIES
+# STATES (simplified city mapping for weather)
 # -----------------------------
 STATE_CITY_MAP = {
     "Tamil Nadu": "Chennai",
-    "Kerala": "Thiruvananthapuram",
+    "Kerala": "Kochi",
     "Karnataka": "Bengaluru",
     "Maharashtra": "Mumbai",
     "Delhi": "Delhi",
     "West Bengal": "Kolkata",
     "Gujarat": "Ahmedabad",
-    "Rajasthan": "Jaipur",
-    "Uttar Pradesh": "Lucknow",
-    "Bihar": "Patna",
-    "Punjab": "Chandigarh",
-    "Haryana": "Gurgaon",
-    "Telangana": "Hyderabad",
-    "Andhra Pradesh": "Amaravati",
-    "Madhya Pradesh": "Bhopal",
-    "Odisha": "Bhubaneswar",
-    "Assam": "Guwahati",
-    "Jharkhand": "Ranchi",
-    "Uttarakhand": "Dehradun",
-    "Himachal Pradesh": "Shimla"
+    "Rajasthan": "Jaipur"
 }
 
 ALL_STATES = list(STATE_CITY_MAP.keys())
@@ -164,25 +149,7 @@ col3.metric("🏬 States Covered", df["state"].nunique())
 st.divider()
 
 # -----------------------------
-# LIVE WEATHER TABLE
-# -----------------------------
-st.subheader("🌦 Live Indian Weather Dashboard")
-
-weather_rows = []
-
-for state in selected_states:
-    city = STATE_CITY_MAP.get(state)
-    if city:
-        weather_rows.append({
-            "State": state,
-            "City": city,
-            "Weather": get_weather(city)
-        })
-
-st.dataframe(pd.DataFrame(weather_rows), use_container_width=True)
-
-# -----------------------------
-# LIVE SALES TABLE
+# LIVE TABLE
 # -----------------------------
 st.subheader("🟢 Live Sales Feed")
 st.dataframe(df.tail(15), use_container_width=True)
@@ -198,7 +165,7 @@ st.plotly_chart(px.bar(state_df, x="state", y="price", color="state"), use_conta
 # -----------------------------
 # WEATHER IMPACT
 # -----------------------------
-st.subheader("🌦 Weather Impact on Sales")
+st.subheader("🌦 Live Weather Impact on Sales")
 weather_df = df.groupby("weather")["price"].sum().reset_index()
 
 st.plotly_chart(px.bar(weather_df, x="weather", y="price", color="weather"), use_container_width=True)
