@@ -5,132 +5,96 @@ import sqlite3
 import plotly.express as px
 import requests
 from datetime import datetime
-from streamlit_autorefresh import st_autorefresh
-import pytz
 
 # -----------------------------
 # CONFIG
 # -----------------------------
-st.set_page_config(page_title="India Mega Mall Pulse", layout="wide", page_icon="🏬")
+st.set_page_config(page_title="India Mall Pulse", layout="wide")
+st.title("🏬🇮🇳 India Mall Revenue Dashboard")
 
 # -----------------------------
-# TIMEZONE (INDIA)
-# -----------------------------
-india_tz = pytz.timezone("Asia/Kolkata")
-current_time = datetime.now(india_tz).strftime("%Y-%m-%d %H:%M:%S")
-
-st.title("🏬🇮🇳 India Mega Mall Revenue Pulse")
-st.caption(f"🕒 India Time: {current_time}")
-
-# -----------------------------
-# WEATHER API KEY (PUT YOUR KEY HERE)
+# WEATHER API
 # -----------------------------
 API_KEY = "YOUR_OPENWEATHER_API_KEY"
 
 def get_weather(city):
     try:
-        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city},IN&appid={API_KEY}&units=metric"
         res = requests.get(url)
         data = res.json()
+
         if res.status_code == 200:
-            return data["weather"][0]["main"] + " 🌡 " + str(data["main"]["temp"]) + "°C"
-        else:
-            return "Unknown"
-    except:
+            return f"{data['weather'][0]['main']} {data['main']['temp']}°C"
         return "No Data"
+    except:
+        return "Error"
 
 # -----------------------------
-# STATES (simplified city mapping for weather)
+# STATES → CITIES
 # -----------------------------
-STATE_CITY_MAP = {
+STATE_CITY = {
     "Tamil Nadu": "Chennai",
-    "Kerala": "Kochi",
     "Karnataka": "Bengaluru",
+    "Kerala": "Kochi",
     "Maharashtra": "Mumbai",
     "Delhi": "Delhi",
-    "West Bengal": "Kolkata",
-    "Gujarat": "Ahmedabad",
-    "Rajasthan": "Jaipur"
+    "West Bengal": "Kolkata"
 }
 
-ALL_STATES = list(STATE_CITY_MAP.keys())
+states = list(STATE_CITY.keys())
 
 # -----------------------------
 # SIDEBAR
 # -----------------------------
-st.sidebar.header("⚙️ Settings Panel")
-
-selected_states = st.sidebar.multiselect(
-    "Select States",
-    ALL_STATES,
-    default=ALL_STATES
-)
-
-enable_auto_sales = st.sidebar.toggle("Enable Auto Sales", value=True)
+selected_states = st.sidebar.multiselect("Select States", states, default=states)
 
 # -----------------------------
 # DATABASE
 # -----------------------------
 conn = sqlite3.connect("mall.db", check_same_thread=False)
-cursor = conn.cursor()
+c = conn.cursor()
 
-cursor.execute("""
+c.execute("""
 CREATE TABLE IF NOT EXISTS sales(
-id INTEGER PRIMARY KEY AUTOINCREMENT,
 time TEXT,
 product TEXT,
-category TEXT,
-price INTEGER,
+price INT,
 state TEXT,
 weather TEXT
 )
 """)
-conn.commit()
-
-# -----------------------------
-# AUTO REFRESH
-# -----------------------------
-st_autorefresh(interval=20000, key="refresh")
 
 # -----------------------------
 # DATA
 # -----------------------------
-products = ["iPhone", "Samsung TV", "Nike Shoes", "Levi Jeans", "Rolex Watch", "MacBook"]
-categories = ["Electronics", "Fashion", "Luxury", "Sports", "Food Court"]
+products = ["iPhone", "TV", "Shoes", "Jeans", "Laptop"]
 
-def generate_sale():
+def add_sale():
     if not selected_states:
         return
 
     state = random.choice(selected_states)
-    city = STATE_CITY_MAP.get(state, "Chennai")
-    weather_data = get_weather(city)
+    city = STATE_CITY[state]
+    weather = get_weather(city)
 
-    cursor.execute("""
-        INSERT INTO sales(time,product,category,price,state,weather)
-        VALUES (?,?,?,?,?,?)
-    """, (
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    c.execute("INSERT INTO sales VALUES (?,?,?,?,?)", (
+        datetime.now().strftime("%H:%M:%S"),
         random.choice(products),
-        random.choice(categories),
-        random.randint(1000, 200000),
+        random.randint(1000, 50000),
         state,
-        weather_data
+        weather
     ))
     conn.commit()
 
 # -----------------------------
-# MANUAL + AUTO SALES
+# BUTTON
 # -----------------------------
-colA, colB = st.columns(2)
+if st.button("➕ Add Sale"):
+    add_sale()
 
-with colA:
-    if st.button("➕ Generate One Sale"):
-        generate_sale()
-
-with colB:
-    if enable_auto_sales:
-        generate_sale()
+# Auto sales
+if st.checkbox("Auto Sales"):
+    add_sale()
 
 # -----------------------------
 # LOAD DATA
@@ -138,39 +102,37 @@ with colB:
 df = pd.read_sql("SELECT * FROM sales", conn)
 
 # -----------------------------
-# KPI
+# KPIs
 # -----------------------------
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
-col1.metric("💰 Total Revenue", f"₹{df['price'].sum():,}")
-col2.metric("🛍 Total Orders", len(df))
-col3.metric("🏬 States Covered", df["state"].nunique())
+col1.metric("💰 Revenue", f"₹{df['price'].sum():,}")
+col2.metric("🛍 Orders", len(df))
 
 st.divider()
 
 # -----------------------------
-# LIVE TABLE
+# TABLE
 # -----------------------------
-st.subheader("🟢 Live Sales Feed")
-st.dataframe(df.tail(15), use_container_width=True)
+st.dataframe(df.tail(10), use_container_width=True)
 
 # -----------------------------
-# STATE REVENUE
+# CHART
 # -----------------------------
-st.subheader("🇮🇳 Revenue by State")
 state_df = df.groupby("state")["price"].sum().reset_index()
-
-st.plotly_chart(px.bar(state_df, x="state", y="price", color="state"), use_container_width=True)
-
-# -----------------------------
-# WEATHER IMPACT
-# -----------------------------
-st.subheader("🌦 Live Weather Impact on Sales")
-weather_df = df.groupby("weather")["price"].sum().reset_index()
-
-st.plotly_chart(px.bar(weather_df, x="weather", y="price", color="weather"), use_container_width=True)
+st.bar_chart(state_df.set_index("state"))
 
 # -----------------------------
-# FOOTER
+# WEATHER VIEW
 # -----------------------------
-st.caption(f"🏬 India Mall Analytics System | Updated: {current_time}")
+st.subheader("🌦 Live Weather")
+
+weather_view = []
+for s in selected_states:
+    weather_view.append({
+        "State": s,
+        "City": STATE_CITY[s],
+        "Weather": get_weather(STATE_CITY[s])
+    })
+
+st.dataframe(pd.DataFrame(weather_view))
