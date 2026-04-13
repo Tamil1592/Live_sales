@@ -5,4 +5,3 @@ plotly>=5.18.0
 requests>=2.31.0
 streamlit-autorefresh>=1.0.1
 pytz>=2024.1
-sqlite3
