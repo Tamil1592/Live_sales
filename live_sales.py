@@ -13,6 +13,33 @@ st.set_page_config(page_title="India Mega Mall Pulse", layout="wide", page_icon=
 st.title("🏬🇮🇳 India Mega Mall Revenue Pulse")
 
 # -----------------------------
+# FULL INDIA STATES + UTs
+# -----------------------------
+ALL_STATES = [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
+    "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+    "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+    "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal",
+    "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
+    "Lakshadweep", "Delhi", "Puducherry", "Jammu and Kashmir", "Ladakh"
+]
+
+# -----------------------------
+# SIDEBAR EDIT OPTION
+# -----------------------------
+st.sidebar.header("⚙️ Settings Panel")
+
+selected_states = st.sidebar.multiselect(
+    "Select Active States/UTs",
+    ALL_STATES,
+    default=ALL_STATES
+)
+
+enable_auto_sales = st.sidebar.toggle("Enable Auto Live Sales", value=True)
+
+# -----------------------------
 # DATABASE
 # -----------------------------
 conn = sqlite3.connect("mall.db", check_same_thread=False)
@@ -20,13 +47,13 @@ cursor = conn.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS sales(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    time TEXT,
-    product TEXT,
-    category TEXT,
-    price INTEGER,
-    state TEXT,
-    weather TEXT
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+time TEXT,
+product TEXT,
+category TEXT,
+price INTEGER,
+state TEXT,
+weather TEXT
 )
 """)
 conn.commit()
@@ -39,13 +66,6 @@ st_autorefresh(interval=20000, key="refresh")
 # -----------------------------
 # DATA
 # -----------------------------
-states = [
-    "Tamil Nadu","Kerala","Karnataka","Andhra Pradesh","Telangana",
-    "Maharashtra","Gujarat","Rajasthan","Delhi","Punjab",
-    "Uttar Pradesh","Bihar","West Bengal","Madhya Pradesh",
-    "Odisha","Assam","Haryana","Jharkhand"
-]
-
 products = ["iPhone", "Samsung TV", "Nike Shoes", "Levi Jeans", "Rolex Watch", "MacBook"]
 categories = ["Electronics", "Fashion", "Luxury", "Sports", "Food Court"]
 
@@ -53,6 +73,8 @@ def weather():
     return random.choice(["Sunny ☀️", "Rain 🌧️", "Cloudy ☁️", "Heat 🔥"])
 
 def generate_sale():
+    if not selected_states:
+        return
     cursor.execute("""
         INSERT INTO sales(time,product,category,price,state,weather)
         VALUES (?,?,?,?,?,?)
@@ -61,13 +83,23 @@ def generate_sale():
         random.choice(products),
         random.choice(categories),
         random.randint(1000, 200000),
-        random.choice(states),
+        random.choice(selected_states),
         weather()
     ))
     conn.commit()
 
-# generate live sale
-generate_sale()
+# -----------------------------
+# MANUAL CONTROL
+# -----------------------------
+colA, colB = st.columns(2)
+
+with colA:
+    if st.button("➕ Generate One Sale Now"):
+        generate_sale()
+
+with colB:
+    if enable_auto_sales:
+        generate_sale()
 
 # -----------------------------
 # LOAD DATA
@@ -95,7 +127,6 @@ st.dataframe(df.tail(15), use_container_width=True)
 # STATE REVENUE
 # -----------------------------
 st.subheader("🇮🇳 Revenue by State")
-
 state_df = df.groupby("state")["price"].sum().reset_index()
 
 st.plotly_chart(
@@ -104,7 +135,7 @@ st.plotly_chart(
 )
 
 # -----------------------------
-# CATEGORY ANALYSIS
+# CATEGORY + WEATHER
 # -----------------------------
 col1, col2 = st.columns(2)
 
