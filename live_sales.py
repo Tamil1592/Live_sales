@@ -15,6 +15,8 @@ st.set_page_config(
     page_icon="📊"
 )
 
+st.title("📊 Enterprise Revenue Command Center")
+
 st_autorefresh(interval=5000, key="refresh")
 
 # -----------------------------
@@ -58,11 +60,23 @@ CITIES = [
 "Delhi","Pune","Kolkata","Ahmedabad"
 ]
 
+WEATHER_TYPES = ["Rain", "Heat", "Normal"]
+
 PRICE_RANGE = {
 "Mobile":[12000,90000],
 "Laptop":[40000,150000],
 "Accessories":[1000,15000]
 }
+
+# -----------------------------
+# WEATHER SIMULATION
+# -----------------------------
+
+def get_weather():
+    weather_map = {}
+    for city in CITIES:
+        weather_map[city] = random.choice(WEATHER_TYPES)
+    return weather_map
 
 # -----------------------------
 # HISTORICAL DATA
@@ -101,6 +115,9 @@ def generate_data():
 if "sales" not in st.session_state:
     st.session_state.sales=generate_data()
 
+if "weather" not in st.session_state:
+    st.session_state.weather = get_weather()
+
 # -----------------------------
 # LIVE SALES
 # -----------------------------
@@ -132,6 +149,9 @@ pd.DataFrame([live_sale()])
 )
 
 df=st.session_state.sales.copy()
+
+# Attach weather
+df["weather"] = df["city"].map(st.session_state.weather)
 
 df["year"]=df.timestamp.dt.year
 df["month"]=df.timestamp.dt.month_name()
@@ -184,6 +204,27 @@ col4.metric("Profit",f"₹{filtered.profit.sum():,.0f}")
 
 growth=filtered.groupby("year")["price"].sum().pct_change().mean()*100
 col5.metric("YoY Growth",f"{growth:.1f}%")
+
+# -----------------------------
+# WEATHER IMPACT
+# -----------------------------
+
+st.subheader("🌦 Weather Impact on Sales")
+
+weather_sales = filtered.groupby("weather")["price"].sum().reset_index()
+
+fig = px.bar(weather_sales, x="weather", y="price", title="Sales by Weather Condition")
+st.plotly_chart(fig, use_container_width=True)
+
+# City weather display
+st.write("### Current Weather by City")
+
+weather_df = pd.DataFrame(
+    list(st.session_state.weather.items()),
+    columns=["City","Weather"]
+)
+
+st.dataframe(weather_df)
 
 # -----------------------------
 # AI FORECAST
