@@ -73,10 +73,7 @@ PRICE_RANGE = {
 # -----------------------------
 
 def get_weather():
-    weather_map = {}
-    for city in CITIES:
-        weather_map[city] = random.choice(WEATHER_TYPES)
-    return weather_map
+    return {city: random.choice(WEATHER_TYPES) for city in CITIES}
 
 # -----------------------------
 # HISTORICAL DATA
@@ -102,11 +99,10 @@ def generate_data():
 
         start+=timedelta(hours=random.randint(3,12))
 
-    df=pd.DataFrame(
+    return pd.DataFrame(
         rows,
         columns=["timestamp","category","brand","model","price","city"]
     )
-    return df
 
 # -----------------------------
 # SESSION STATE
@@ -141,14 +137,11 @@ def live_sale():
         "city":city
     }
 
-st.session_state.sales=pd.concat(
-[
-st.session_state.sales,
-pd.DataFrame([live_sale()])
-]
+st.session_state.sales = pd.concat(
+    [st.session_state.sales, pd.DataFrame([live_sale()])]
 )
 
-df=st.session_state.sales.copy()
+df = st.session_state.sales.copy()
 
 # Attach weather
 df["weather"] = df["city"].map(st.session_state.weather)
@@ -163,26 +156,34 @@ df["month"]=df.timestamp.dt.month_name()
 st.sidebar.title("Filters")
 
 year=st.sidebar.multiselect(
-"Year",df.year.unique(),default=df.year.unique()
+    "Year",df.year.unique(),default=df.year.unique()
 )
 
 brand=st.sidebar.multiselect(
-"Brand",df.brand.unique(),default=df.brand.unique()
+    "Brand",df.brand.unique(),default=df.brand.unique()
 )
 
 category=st.sidebar.multiselect(
-"Category",df.category.unique(),default=df.category.unique()
+    "Category",df.category.unique(),default=df.category.unique()
 )
 
 city=st.sidebar.multiselect(
-"City",df.city.unique(),default=df.city.unique()
+    "City",df.city.unique(),default=df.city.unique()
+)
+
+# ✅ NEW WEATHER FILTER
+weather=st.sidebar.multiselect(
+    "Weather",
+    df.weather.unique(),
+    default=df.weather.unique()
 )
 
 filtered=df[
-(df.year.isin(year))&
-(df.brand.isin(brand))&
-(df.category.isin(category))&
-(df.city.isin(city))
+    (df.year.isin(year))&
+    (df.brand.isin(brand))&
+    (df.category.isin(category))&
+    (df.city.isin(city))&
+    (df.weather.isin(weather))   # ✅ applied here
 ].copy()
 
 # -----------------------------
@@ -213,10 +214,9 @@ st.subheader("🌦 Weather Impact on Sales")
 
 weather_sales = filtered.groupby("weather")["price"].sum().reset_index()
 
-fig = px.bar(weather_sales, x="weather", y="price", title="Sales by Weather Condition")
+fig = px.bar(weather_sales, x="weather", y="price")
 st.plotly_chart(fig, use_container_width=True)
 
-# City weather display
 st.write("### Current Weather by City")
 
 weather_df = pd.DataFrame(
@@ -264,8 +264,8 @@ with col1:
     st.plotly_chart(fig,use_container_width=True)
 
 with col2:
-    brand=filtered.groupby("brand")["price"].sum().reset_index()
-    fig=px.bar(brand,x="brand",y="price")
+    brand_df=filtered.groupby("brand")["price"].sum().reset_index()
+    fig=px.bar(brand_df,x="brand",y="price")
     st.plotly_chart(fig,use_container_width=True)
 
 # -----------------------------
@@ -273,9 +273,7 @@ with col2:
 # -----------------------------
 
 if "inventory" not in st.session_state:
-
     data=[]
-
     for cat in PRODUCT_DB:
         for brand in PRODUCT_DB[cat]:
             for model in PRODUCT_DB[cat][brand]:
@@ -299,7 +297,7 @@ st.dataframe(st.session_state.inventory)
 st.subheader("Alerts")
 
 low=st.session_state.inventory[
-st.session_state.inventory.stock<30
+    st.session_state.inventory.stock<30
 ]
 
 if not low.empty:
@@ -328,8 +326,8 @@ st.dataframe(top)
 st.subheader("Live Sales")
 
 live=filtered.sort_values(
-"timestamp",
-ascending=False
+    "timestamp",
+    ascending=False
 ).head(20)
 
 st.dataframe(live)
